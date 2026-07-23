@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SecretárIA — Agente de IA para Prestadores de Serviço</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%23060608'/%3E%3Cpath d='M8 78 Q40 78 55 48 T92 18' stroke='url(%23g)' stroke-width='7' fill='none' stroke-linecap='round'/%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='1' x2='1' y2='0'%3E%3Cstop offset='0' stop-color='%235567EE'/%3E%3Cstop offset='1' stop-color='%239257EA'/%3E%3C/linearGradient%3E%3C/defs%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ===== Tokens — extraídos do painel real (secretaria-dashboard) ===== */
+  :root{
+    --bg:#07070B; --surface:rgba(255,255,255,.045); --surface2:rgba(255,255,255,.07);
+    --bdr:rgba(255,255,255,.10); --bdr-strong:rgba(255,255,255,.20);
+    --tx:#F3F2F8; --tx2:#A6A3B8; --tx3:#68657A;
+    --blue:#5567EE; --violet:#9257EA; --magenta:#C859C9; --orange:#F0904A; --gold:#F5C167; --rose:#E8637C;
+    --grad:linear-gradient(135deg,var(--blue),var(--violet));
+    --r:16px; --rsm:10px;
+    --sh:0 20px 60px rgba(0,0,0,.5); --sh-md:0 10px 40px rgba(0,0,0,.55); --sh-violet:0 0 30px rgba(146,87,234,.18);
+    --font-body:'Archivo',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --font-mono:'IBM Plex Mono','SF Mono',Consolas,monospace;
+    --font-display:'Playfair Display',serif;
+  }
+
+  *{box-sizing:border-box;}
+  html{background:var(--bg);}
+  body{
+    margin:0; background:var(--bg); color:var(--tx);
+    font-family:var(--font-body); font-size:16px; line-height:1.6;
+    -webkit-font-smoothing:antialiased; overflow-x:hidden; position:relative;
+  }
+  h1,h2,h3{margin:0; text-wrap:balance; color:var(--tx); font-family:var(--font-display); font-weight:600;}
+  p{margin:0;}
+  a{color:inherit;}
+  button{font:inherit;}
+  ::selection{background:var(--violet); color:#fff;}
+  .mono{font-family:var(--font-mono);}
+  .num{font-family:var(--font-display); letter-spacing:-.01em;}
+  .prose{max-width:60ch;}
+  .container{max-width:1120px; margin:0 auto; padding-inline:clamp(1.25rem,1rem + 3vw,3rem); position:relative; z-index:1;}
+
+  /* ===== Aurora backdrop (mesmo motivo do painel real) ===== */
+  #aurora{position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden;}
+  #aurora svg{position:absolute; top:-10%; left:-10%; width:120%; height:70%; opacity:.5; filter:blur(2px);}
+  #aurora::after{
+    content:''; position:absolute; inset:0;
+    background:
+      radial-gradient(ellipse 900px 500px at 8% 0%, rgba(85,103,238,.15), transparent 60%),
+      radial-gradient(ellipse 900px 600px at 100% 8%, rgba(146,87,234,.13), transparent 60%),
+      radial-gradient(ellipse 700px 550px at 55% 100%, rgba(200,89,201,.08), transparent 60%);
+  }
+  #aurora::before{
+    content:''; position:absolute; inset:0; opacity:.045; mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  @media (prefers-reduced-motion: no-preference){
+    .reveal{opacity:0; transform:translateY(14px); transition:opacity .5s ease, transform .5s ease;}
+    .reveal.is-visible{opacity:1; transform:none;}
+    @keyframes blink{0%,100%{opacity:1;}50%{opacity:.35;}}
+  }
+
+  /* ===== Topbar ===== */
+  .topbar{
+    position:sticky; top:0; z-index:100;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:1.1rem clamp(1.25rem,1rem + 3vw,3rem);
+    background:color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter:blur(14px); border-bottom:1px solid var(--bdr);
+  }
+  .brand{display:flex; align-items:center; gap:10px;}
+  .brand-spark{width:19px; height:19px; flex:none;}
+  .brand-mark{font-family:var(--font-display); font-weight:600; font-size:1.35rem; color:var(--tx); letter-spacing:.01em;}
+  .brand-mark span{background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent;}
+  .live-pill{display:inline-flex; align-items:center; gap:7px; background:var(--surface); border:1px solid var(--bdr); border-radius:20px; padding:5px 13px; backdrop-filter:blur(10px);}
+  .live-pill .dot{width:7px; height:7px; border-radius:50%; background:var(--gold); box-shadow:0 0 8px var(--gold); flex:none;}
+  @media (prefers-reduced-motion: no-preference){ .live-pill .dot{animation:blink 2.2s ease-in-out infinite;} }
+  .live-pill span{font-size:11px; color:var(--tx2); font-weight:500;}
+  .topbar-r{display:flex; align-items:center; gap:12px;}
+
+  /* ===== Buttons ===== */
+  .btn-grad{
+    display:inline-flex; align-items:center; gap:8px; white-space:nowrap;
+    background:var(--grad); color:#0A0A10;
+    border:none; padding:12px 24px; border-radius:var(--rsm);
+    font-size:14px; font-weight:700; cursor:pointer; text-decoration:none;
+    box-shadow:0 4px 18px rgba(146,87,234,.3);
+    transition:all .2s ease;
+  }
+  .btn-grad:hover{transform:translateY(-2px); box-shadow:0 8px 26px rgba(146,87,234,.45);}
+  .btn-grad.sm{padding:9px 16px; font-size:12.5px;}
+  .text-link{font-size:13.5px; color:var(--tx2); text-decoration:underline; text-underline-offset:3px; background:none; border:none; cursor:pointer; padding:0; font-family:inherit;}
+  .text-link:hover{color:var(--tx);}
+
+  /* ===== Section label ===== */
+  .sec{font-size:10px; letter-spacing:.22em; text-transform:uppercase; color:var(--tx3); display:flex; align-items:center; gap:12px; font-weight:600; margin-bottom:14px; font-family:var(--font-body);}
+  .sec::before{content:''; width:20px; height:2px; background:linear-gradient(90deg,var(--violet),transparent); flex:none;}
+  .sec::after{content:''; flex:1; height:1px; background:linear-gradient(90deg,var(--bdr),transparent);}
+  .section-head{margin-bottom:clamp(1.75rem,1.3rem + 2vw,2.75rem);}
+  .section-head h2{font-size:clamp(1.5rem,1.3rem + 1.2vw,2.1rem); letter-spacing:-.01em; margin-bottom:.8rem;}
+  .section-head p{color:var(--tx2); font-size:1rem; font-family:var(--font-body);}
+  section{padding-block:clamp(2.75rem,2.1rem + 3.5vw,5.5rem); position:relative; z-index:1;}
+  .grad-text{background:linear-gradient(135deg,#fff 0%,#C9BFFF 55%, var(--violet) 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;}
+
+  /* ===== Hero ===== */
+  .hero{padding-block:clamp(3rem,2.3rem + 5vw,6rem) clamp(2.5rem,2rem + 3vw,4rem);}
+  .hero-inner{display:grid; gap:clamp(2rem,1.5rem + 2vw,3rem);}
+  @media (min-width: 860px){ .hero-inner{grid-template-columns:1.15fr 1fr; align-items:center;} }
+  .hero h1{font-size:clamp(2rem,1.5rem + 2.4vw,3rem); line-height:1.12; letter-spacing:-.01em;}
+  .hero-lede{font-size:clamp(1rem,.95rem + .5vw,1.15rem); color:var(--tx2); margin-top:1.1rem; max-width:50ch; font-family:var(--font-body);}
+  .hero-cta{display:flex; flex-wrap:wrap; gap:1rem; margin-top:1.9rem; align-items:center;}
+
+  .console{background:var(--surface); border:1px solid var(--bdr); border-radius:var(--r); box-shadow:var(--sh); padding:1.2rem 1.35rem; max-width:560px; backdrop-filter:blur(16px);}
+  .console-row{display:flex; gap:.85rem; padding:.45rem 0; font-size:13px; font-family:var(--font-body);}
+  .console-row + .console-row{border-top:1px dashed var(--bdr);}
+  .console-time{color:var(--tx3); flex:none; width:3.6em;}
+  .console-text{color:var(--tx2);}
+  .console-text b{color:var(--tx); font-weight:600;}
+  .console-caption{font-size:11.5px; color:var(--tx3); margin-top:.8rem; font-family:var(--font-body);}
+
+  /* ===== Category pill (idêntico ao chip-status do painel) ===== */
+  .sp{display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; font-family:var(--font-mono);}
+  .sp.sh{background:rgba(146,87,234,.12); color:#C9BFFF; border:1px solid rgba(146,87,234,.3);}
+
+  /* ===== Cards genéricos (glass, igual ao painel) ===== */
+  .card{background:var(--surface); border-radius:var(--r); border:1px solid var(--bdr); box-shadow:var(--sh); padding:1.5rem; transition:all .25s; backdrop-filter:blur(14px);}
+  .card:hover{border-color:var(--bdr-strong); transform:translateY(-1px); box-shadow:var(--sh-md);}
+  .g2{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
+  @media (max-width: 720px){ .g2{grid-template-columns:1fr;} }
+
+  .tag-mini{font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:#C9BFFF; font-weight:700; margin-bottom:8px; display:block; font-family:var(--font-body);}
+  .card p.body-txt{color:var(--tx2); font-size:14.5px; line-height:1.55; font-family:var(--font-body);}
+
+  /* ===== Steps ===== */
+  .steps{display:grid; gap:1px; background:var(--bdr); border:1px solid var(--bdr); border-radius:var(--r); overflow:hidden;}
+  .step{background:var(--surface); padding:1.4rem clamp(1.1rem,1rem + 1vw,1.7rem); display:grid; grid-template-columns:3rem 1fr; gap:1.1rem; align-items:start; backdrop-filter:blur(14px);}
+  .step-index{font-family:var(--font-display); font-weight:700; background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent; font-size:22px; font-variant-numeric:tabular-nums;}
+  .step p{color:var(--tx2); font-size:14.5px; margin-top:.15rem; font-family:var(--font-body);}
+  .step b{color:var(--tx); font-weight:600;}
+
+  /* ===== Feature grid ===== */
+  .feature-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:20px;}
+  @media (max-width: 720px){ .feature-grid{grid-template-columns:1fr;} }
+  .feature{background:var(--surface); border-radius:var(--r); border:1px solid var(--bdr); box-shadow:var(--sh); padding:1.5rem; transition:all .25s; backdrop-filter:blur(14px);}
+  .feature:hover{border-color:rgba(146,87,234,.3); box-shadow:var(--sh-violet),var(--sh-md); transform:translateY(-2px);}
+  .feature-ico{width:34px; height:34px; border-radius:9px; background:rgba(146,87,234,.1); border:1px solid rgba(146,87,234,.22); display:flex; align-items:center; justify-content:center; color:#C9BFFF; margin-bottom:14px;}
+  .feature h3{font-size:15.5px; font-weight:600; margin-bottom:6px; letter-spacing:0;}
+  .feature p{color:var(--tx2); font-size:13.5px; line-height:1.55; font-family:var(--font-body);}
+
+  /* ===== Mockup do painel ===== */
+  .mock-frame{border:1px solid var(--bdr); border-radius:var(--r); background:var(--surface); box-shadow:var(--sh); overflow:hidden; backdrop-filter:blur(14px);}
+  .mock-bar{display:flex; align-items:center; justify-content:space-between; padding:.85rem 1.3rem; border-bottom:1px solid var(--bdr);}
+  .mock-bar .label{font-size:12px; color:var(--tx2); font-weight:600; font-family:var(--font-body);}
+  .tag-example{font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--tx3); border:1px dashed var(--bdr-strong); border-radius:20px; padding:3px 10px; font-weight:600; font-family:var(--font-body);}
+  .kpi-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--bdr); padding:1px;}
+  @media (max-width: 720px){ .kpi-grid{grid-template-columns:repeat(2,1fr);} }
+  .kpi{background:var(--surface); padding:1.4rem 1.3rem;}
+  .kpi-lbl{font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--tx3); margin-bottom:10px; font-weight:600; font-family:var(--font-body);}
+  .kpi-val{font-family:var(--font-display); font-size:clamp(1.6rem,1.35rem + 1vw,2.1rem); font-weight:600; letter-spacing:-.01em; line-height:1; color:var(--tx); font-variant-numeric:tabular-nums;}
+  .kpi-val.grad{background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent;}
+
+  /* ===== Barras (categorias mais buscadas) ===== */
+  .bar-row{display:grid; grid-template-columns:11rem 1fr 3.4rem; align-items:center; gap:.9rem; padding:.7rem 0;}
+  .bar-row + .bar-row{border-top:1px solid var(--bdr);}
+  .bar-label{font-size:13.5px; color:var(--tx2); font-family:var(--font-body);}
+  .bar-track{height:8px; background:var(--surface2); border-radius:20px; overflow:hidden;}
+  .bar-fill{height:100%; border-radius:20px;}
+  .bar-pct{font-family:var(--font-mono); font-size:13px; text-align:right; font-variant-numeric:tabular-nums;}
+  @media (max-width: 560px){ .bar-row{grid-template-columns:1fr; gap:.35rem;} .bar-pct{text-align:left;} }
+
+  /* ===== CTA card ===== */
+  .cta-card{background:linear-gradient(150deg,#12101E,#0A0910); border:1px solid rgba(146,87,234,.28); border-radius:var(--r); padding:clamp(2rem,1.6rem + 2vw,3rem); box-shadow:var(--sh-md);}
+  .cta-card h2{font-size:clamp(1.6rem,1.35rem + 1.3vw,2.2rem); letter-spacing:-.01em; margin-bottom:.9rem;}
+  .cta-card p.body-txt{color:var(--tx2); max-width:46ch; margin-bottom:1.8rem; font-size:15px; font-family:var(--font-body);}
+  .cta-note{font-size:11.5px; color:var(--tx3); margin-top:1rem; max-width:44ch; font-family:var(--font-body);}
+
+  /* ===== Diferenciais ===== */
+  .diff-list{display:grid; gap:1px; background:var(--bdr); border:1px solid var(--bdr); border-radius:var(--r); overflow:hidden;}
+  .diff{background:var(--surface); padding:1.15rem clamp(1.1rem,1rem + 1vw,1.6rem); font-size:14.5px; font-family:var(--font-body); backdrop-filter:blur(14px);}
+  .diff .no{color:var(--tx3);}
+  .diff .yes{color:var(--tx); font-weight:600; display:block; margin-top:.3rem;}
+  .diff .yes .hl{background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent;}
+
+  footer{padding:2rem clamp(1.25rem,1rem + 3vw,3rem) 3rem; color:var(--tx3); font-size:12px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:.5rem; position:relative; z-index:1; font-family:var(--font-body);}
+
+  @keyframes fadeUp{from{opacity:0; transform:translateY(14px);} to{opacity:1; transform:translateY(0);}}
+</style>
+</head>
+<body>
+<div id="aurora">
+  <svg viewBox="0 0 1200 700" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id="arcGrad" x1="0" y1="1" x2="1" y2="0">
+        <stop offset="0" stop-color="#4C5FE8"/>
+        <stop offset="1" stop-color="#9257EA"/>
+      </linearGradient>
+    </defs>
+    <path d="M -50 620 Q 350 620 550 350 T 1250 30" stroke="url(#arcGrad)" stroke-width="3" fill="none" stroke-linecap="round"/>
+  </svg>
+</div>
+
+<header class="topbar">
+  <div class="brand">
+    <svg class="brand-spark" viewBox="0 0 24 24" fill="none">
+      <path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z" fill="url(#sparkGradTop)"/>
+      <defs><linearGradient id="sparkGradTop" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F5C167"/><stop offset="1" stop-color="#F0904A"/></linearGradient></defs>
+    </svg>
+    <span class="brand-mark">Secretár<span>IA</span></span>
+  </div>
+  <div class="topbar-r">
+    <span class="live-pill"><span class="dot" aria-hidden="true"></span><span class="mono">ativa 24/7</span></span>
+    <a class="btn-grad sm" href="#tour">Ver o painel ↓</a>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="container hero-inner">
+      <div class="reveal">
+        <p class="sec" style="margin-bottom:1rem;">Agente de IA · WhatsApp · Prestadores de Serviço · Gravatá-PE</p>
+        <h1 class="grad-text">Alguém em Gravatá precisa de um serviço agora — mesmo de madrugada.</h1>
+        <p class="hero-lede">A SecretárIA responde na hora: descobre se é cliente ou prestador, entende o que a pessoa precisa e liga um ao outro — sozinha, todos os dias, sem ninguém ficar esperando resposta.</p>
+        <div class="hero-cta">
+          <a class="btn-grad" href="#tour">Ver o painel por dentro ↓</a>
+          <button class="text-link" onclick="document.getElementById('problema').scrollIntoView({behavior:'smooth'})">Já tenho um grupo de WhatsApp, por que preciso disso?</button>
+        </div>
+      </div>
+
+      <div class="console reveal">
+        <div class="console-row"><span class="console-time mono">02:14</span><span class="console-text">mensagem recebida — <b>"oi, preciso de um eletricista, é urgente"</b></span></div>
+        <div class="console-row"><span class="console-time mono">02:14</span><span class="console-text">SecretárIA identificou: <b>cliente</b></span></div>
+        <div class="console-row"><span class="console-time mono">02:15</span><span class="console-text"><span class="sp sh">Categoria: Elétrica</span>&nbsp; prestador acionado</span></div>
+        <div class="console-row"><span class="console-time mono">07:40</span><span class="console-text">prestador confirmou o atendimento</span></div>
+        <p class="console-caption">Exemplo de como um atendimento fica registrado no painel — ilustrativo, não é uma conversa real.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="problema">
+    <div class="container">
+      <div class="section-head reveal">
+        <p class="sec">O que acontece hoje, sem a SecretárIA</p>
+        <h2>Todo pedido sem resposta é um cliente procurando outro caminho.</h2>
+      </div>
+      <div class="g2 reveal">
+        <div class="card"><span class="tag-mini">Fora de hora</span><p class="body-txt">Um cliente precisa de um serviço à noite ou no fim de semana e não sabe quem chamar.</p></div>
+        <div class="card"><span class="tag-mini">Cadastro manual</span><p class="body-txt">Cada prestador novo chega por indicação e alguém precisa anotar os dados na mão.</p></div>
+        <div class="card"><span class="tag-mini">Grupo de WhatsApp</span><p class="body-txt">O pedido se perde no meio de outras mensagens do grupo, sem ninguém garantir que alguém responda.</p></div>
+        <div class="card"><span class="tag-mini">Cobrança esquecida</span><p class="body-txt">Sem alguém lembrando, a assinatura do prestador atrasa e ninguém percebe a tempo.</p></div>
+        <div class="card"><span class="tag-mini">Sem categoria</span><p class="body-txt">O cliente não sabe se aquele contato realmente atende o serviço que ele precisa.</p></div>
+        <div class="card"><span class="tag-mini">Inadimplente visível</span><p class="body-txt">Prestador que está fora do prazo de pagamento continua aparecendo pros clientes do mesmo jeito.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="container">
+      <div class="section-head reveal">
+        <p class="sec">Como a SecretárIA trabalha</p>
+        <h2>Da primeira mensagem até o prestador certo.</h2>
+      </div>
+      <div class="steps reveal">
+        <div class="step"><span class="step-index num">01</span><p><b>Mensagem chega</b> no WhatsApp, de cliente ou prestador, a qualquer hora.</p></div>
+        <div class="step"><span class="step-index num">02</span><p><b>SecretárIA identifica sozinha</b> quem está falando: cliente procurando um serviço ou prestador se cadastrando.</p></div>
+        <div class="step"><span class="step-index num">03</span><p><b>Se for prestador</b>, conduz o cadastro completo — dados, categoria e cobrança da assinatura — direto na conversa.</p></div>
+        <div class="step"><span class="step-index num">04</span><p><b>Se for cliente</b>, entende o que ele precisa e liga ele ao prestador certo daquela categoria.</p></div>
+        <div class="step"><span class="step-index num">05</span><p><b>Tudo fica organizado</b> num painel só — prestadores, clientes e categorias, sempre atualizados.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tour">
+    <div class="container">
+      <div class="section-head reveal">
+        <p class="sec">O que você vê do outro lado</p>
+        <h2>Um painel de controle pra tudo que a SecretárIA faz.</h2>
+        <p class="prose">As mesmas telas que você já usa no dia a dia — os ícones abaixo são os mesmos do menu real do painel.</p>
+      </div>
+      <div class="feature-grid reveal">
+        <div class="feature">
+          <div class="feature-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m17 11 2 2 4-4"/></svg></div>
+          <h3>Painel de Prestadores</h3>
+          <p>Nome, telefone, categoria e status do pagamento de cada prestador, numa lista só.</p>
+        </div>
+        <div class="feature">
+          <div class="feature-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+          <h3>Painel de Clientes</h3>
+          <p>Quem já buscou um serviço e quais categorias interessaram a cada cliente.</p>
+        </div>
+        <div class="feature">
+          <div class="feature-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3.24L4 3a1 1 0 0 0-1 1l.24 5.59a2 2 0 0 0 .59 1.41l9.58 9.58a2 2 0 0 0 2.83 0l4.35-4.35a2 2 0 0 0 0-2.82Z"/><circle cx="8.5" cy="8.5" r="1.5"/></svg></div>
+          <h3>Categorias de Serviço</h3>
+          <p>Lista organizada, fácil de adicionar ou remover conforme o negócio cresce.</p>
+        </div>
+        <div class="feature">
+          <div class="feature-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/><path d="m9 12 2 2 4-4"/></svg></div>
+          <h3>Cadastro pelo WhatsApp</h3>
+          <p>Prestador se cadastra sozinho, direto na conversa — sem formulário, sem planilha.</p>
+        </div>
+        <div class="feature">
+          <div class="feature-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></div>
+          <h3>Ativar/Ocultar da Busca</h3>
+          <p>Um interruptor tira um prestador da busca dos clientes sem apagar o cadastro dele.</p>
+        </div>
+        <div class="feature">
+          <div class="feature-ico"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+          <h3>Acesso Protegido</h3>
+          <p>O painel só abre com um código de acesso — dados como CPF e telefone ficam resguardados.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="container">
+      <div class="section-head reveal">
+        <p class="sec" style="color:var(--tx2);">Exemplo ilustrativo — não são dados reais</p>
+        <h2>É mais ou menos assim que fica o seu painel.</h2>
+        <p class="prose">Os números abaixo são só pra mostrar o formato. O seu negócio tem o próprio ritmo — esses dados passam a ser os seus a partir do primeiro cadastro.</p>
+      </div>
+
+      <div class="mock-frame reveal">
+        <div class="mock-bar"><span class="label">Painel de Controle · mês atual</span><span class="tag-example">exemplo</span></div>
+        <div class="kpi-grid">
+          <div class="kpi"><p class="kpi-lbl">Prestadores cadastrados</p><p class="kpi-val num">34</p></div>
+          <div class="kpi"><p class="kpi-lbl">Em dia com pagamento</p><p class="kpi-val grad num">82%</p></div>
+          <div class="kpi"><p class="kpi-lbl">Categorias ativas</p><p class="kpi-val num">12</p></div>
+          <div class="kpi"><p class="kpi-lbl">Clientes atendidos</p><p class="kpi-val num">97</p></div>
+        </div>
+      </div>
+
+      <div style="height:1.5rem;"></div>
+
+      <div class="mock-frame reveal">
+        <div class="mock-bar"><span class="label">Categorias mais buscadas pelos clientes</span><span class="tag-example">exemplo</span></div>
+        <div style="padding:1.4rem clamp(1.1rem,1rem + 1vw,1.7rem);">
+          <div class="bar-row">
+            <span class="bar-label">Elétrica</span>
+            <div class="bar-track"><div class="bar-fill" style="width:38%;background:var(--violet);"></div></div>
+            <span class="bar-pct" style="color:#C9BFFF;">38%</span>
+          </div>
+          <div class="bar-row">
+            <span class="bar-label">Encanamento</span>
+            <div class="bar-track"><div class="bar-fill" style="width:27%;background:var(--blue);"></div></div>
+            <span class="bar-pct" style="color:var(--blue);">27%</span>
+          </div>
+          <div class="bar-row">
+            <span class="bar-label">Diarista</span>
+            <div class="bar-track"><div class="bar-fill" style="width:21%;background:var(--magenta);"></div></div>
+            <span class="bar-pct" style="color:var(--magenta);">21%</span>
+          </div>
+          <div class="bar-row">
+            <span class="bar-label">Outras categorias</span>
+            <div class="bar-track"><div class="bar-fill" style="width:14%;background:var(--tx3);"></div></div>
+            <span class="bar-pct" style="color:var(--tx3);">14%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="container">
+      <div class="section-head reveal">
+        <p class="sec">Por que não é só mais um grupo de WhatsApp</p>
+        <h2>A diferença aparece no dia a dia.</h2>
+      </div>
+      <div class="diff-list reveal">
+        <div class="diff"><span class="no">Grupo de WhatsApp comum: mensagem se perde no meio de tudo.</span><span class="yes">SecretárIA <span class="hl">identifica e direciona sozinha</span>, cliente ou prestador.</span></div>
+        <div class="diff"><span class="no">Grupo de WhatsApp comum: cadastro e cobrança são feitos na mão.</span><span class="yes">SecretárIA <span class="hl">cadastra e cobra a assinatura</span> dentro da própria conversa.</span></div>
+        <div class="diff"><span class="no">Grupo de WhatsApp comum: qualquer um vê o pedido, ninguém garante resposta.</span><span class="yes">SecretárIA <span class="hl">liga direto ao prestador certo</span> da categoria.</span></div>
+        <div class="diff"><span class="no">Grupo de WhatsApp comum: prestador inadimplente continua visível pra todo mundo.</span><span class="yes">SecretárIA <span class="hl">tira da busca automaticamente</span> quem está fora, sem apagar o cadastro.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="container">
+      <div class="cta-card reveal">
+        <h2 class="grad-text">Quer ver a SecretárIA rodando no seu negócio?</h2>
+        <p class="body-txt">Marco uma demonstração e mostro o painel ao vivo, com as categorias configuradas pro seu tipo de serviço.</p>
+        <a class="btn-grad" href="#" target="_blank" rel="noopener">Falar sobre a SecretárIA</a>
+        <p class="cta-note">⚠️ Número de WhatsApp pendente de confirmação — me diga o número certo e eu ligo o botão.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span>SecretárIA — agente de IA para prestadores de serviço</span>
+  <span class="mono">painel de demonstração comercial</span>
+</footer>
+
+<script>
+  (function(){
+    var els = document.querySelectorAll('.reveal');
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      els.forEach(function(el){ el.classList.add('is-visible'); });
+      return;
+    }
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if (entry.isIntersecting) { entry.target.classList.add('is-visible'); io.unobserve(entry.target); }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    els.forEach(function(el){ io.observe(el); });
+  })();
+</script>
+</body>
+</html>
